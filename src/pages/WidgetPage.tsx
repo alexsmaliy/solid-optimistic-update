@@ -62,7 +62,6 @@ export default function WidgetPage() {
         db.pragma("journal_mode = WAL")
         const results: Widget[] = db.prepare<Widget[]>("SELECT * FROM widgets;").all()
         const widgets = results.map(({id, description, active}) => ({id, description, active: !!active}))
-        console.log("Widget db: ", widgets)
         return widgets
     })
 
@@ -88,13 +87,11 @@ function Widgets() {
                 for (const id of ids) results.push(db.prepare(data.sqlTemplate).run(id))
                 return results
             })(data.ids)
-            console.log("Transaction results: ", results)
-            const _ = await new Promise(resolve => setTimeout(resolve, 1000))
+            const _ = await new Promise(resolve => setTimeout(resolve, 1000)) // artificially slow endpoint
             return results
         } catch (err) {
             console.error("Error while running DB transaction serverside: ", err)
-            const e = err as Error
-            return new ServerError(`Error while running DB transaction serverside: ${e.message}`)
+            return new ServerError(`Error while running DB transaction serverside: ${(err as Error).message}`)
         }
     })
 
@@ -129,8 +126,6 @@ function Widgets() {
                     backup.set(id, store.keyedItems[id].data[mutatedField])
                     store.keyedItems[id].data[mutatedField] = newValue
                     store.keyedItems[id].meta.networkStatus = SENT_REQUEST
-                    console.log("Current item status while starting: ", store.keyedItems[id].meta.networkStatus)
-                    console.log("Current item active while starting: ", store.keyedItems[id].data[mutatedField])
                 }))
             }
         })
@@ -185,6 +180,7 @@ function Widgets() {
         keyField: "id",
         mutatedField: "active",
         newValue: true,
+        // should be idempotent and reflect what the clientside update is
         sqlTemplate: "UPDATE widgets SET active = TRUE WHERE id = ?;",
         setStore: setState,
     })
@@ -194,7 +190,8 @@ function Widgets() {
         keyField: "id",
         mutatedField: "active",
         newValue: false,
-        sqlTemplate: "UPDATE woodgets SET active = FALSE WHERE id = ?;",
+        // should be idempotent and reflect what the clientside update is
+        sqlTemplate: "UPDATE widgets SET active = FALSE WHERE id = ?;",
         setStore: setState,
     })
 
