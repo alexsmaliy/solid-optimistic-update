@@ -1,0 +1,2 @@
+export const [SYNCED, SENT_REQUEST, GOT_ERROR, SENT_RETRY, FAILED] = ["synced", "sent-request", "got-error", "sent-retry", "failed"] as const
+export type NetworkStatus = typeof SYNCED | typeof SENT_REQUEST | typeof GOT_ERROR | typeof SENT_RETRY | typeof FAILED

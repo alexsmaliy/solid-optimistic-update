@@ -1,0 +1,29 @@
+
+dist
+.solid
+.output
+.vercel
+.netlify
+netlify
+
+# dependencies
+/node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+*.launch
+.settings/
+
+# Temp
+gitignore
+
+# System Files
+.DS_Store
+Thumbs.db
+
+functions/
+wrangler.toml
+Omark.sqlite3-shm
+Omark.sqlite3-wal
