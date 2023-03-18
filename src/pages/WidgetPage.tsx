@@ -111,21 +111,25 @@ function Widgets() {
             setStore: SetStoreFunction<Store>
         },
     ) {
-        const ids = items.map(item => {
-            const data: Item = item.data
-            const key: Item[KeyField] = data[keyField]
-            return key
-        })
+        const ids = items.map(item => item.data[keyField])
         const clientsideIds = items.map(item => item.meta.clientsideId)
-        
         const backup: Map<string, Item[MutatedField]> = new Map()
 
+        // optimistic update
         batch(() => {
             for (const id of clientsideIds) {
                 setStore(produce(store => {
                     backup.set(id, store.keyedItems[id].data[mutatedField])
-                    store.keyedItems[id].data[mutatedField] = newValue
-                    store.keyedItems[id].meta.networkStatus = SENT_REQUEST
+                    store.keyedItems[id] = {
+                        data: {
+                            ...store.keyedItems[id].data,
+                            [mutatedField]: newValue,
+                        },
+                        meta: {
+                            ...store.keyedItems[id].meta,
+                            networkStatus: SENT_REQUEST,
+                        }
+                    }
                 }))
             }
         })
@@ -133,28 +137,24 @@ function Widgets() {
         const retryDelay = retryDelayGen("250ms", "10000ms")
         const numTries = 3;
 
+        // the retry/rollback state machine
         (function tryRepeatedly(totalTries: number) {
             runSqlInTransaction$({ids, sqlTemplate}).then(res => {
                 if (res instanceof Error) {
                     if (totalTries > 0) {
                         console.error(`Got error, retrying ${totalTries} times.`, res.message)
+
                         batch(() => {
                             for (const id of clientsideIds)
-                                setStore(produce(store => {
-                                    store.keyedItems[id].data[mutatedField] = newValue // redundant, but necessary?
-                                    store.keyedItems[id].meta.networkStatus = GOT_ERROR
-                                }))
+                                setStore(produce(store => store.keyedItems[id].meta.networkStatus = GOT_ERROR))
                         })
-                        const delay = retryDelay.next().value
+
                         return new Promise(() => {
                             batch(() => {
                                 for (const id of clientsideIds)
-                                    setStore(produce(store => {
-                                        store.keyedItems[id].data[mutatedField] = newValue // redundant, but necessary?
-                                        store.keyedItems[id].meta.networkStatus = SENT_RETRY
-                                    }))
+                                    setStore(produce(store => store.keyedItems[id].meta.networkStatus = SENT_RETRY))
                             })
-                            setTimeout(() => tryRepeatedly(totalTries - 1), delay)
+                            setTimeout(() => tryRepeatedly(totalTries - 1), retryDelay.next().value)
                         })
                     } else {
                         batch(() => {
@@ -191,7 +191,7 @@ function Widgets() {
         mutatedField: "active",
         newValue: false,
         // should be idempotent and reflect what the clientside update is
-        sqlTemplate: "UPDATE widgets SET active = FALSE WHERE id = ?;",
+        sqlTemplate: "UPDATE woodgets SET active = FALSE WHERE id = ?;",
         setStore: setState,
     })
 
