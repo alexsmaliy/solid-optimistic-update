@@ -1,16 +1,20 @@
+import type { SetStoreFunction } from "solid-js/store"
+
 import Database from "better-sqlite3"
-import { batch, createContext, createMemo, For, JSXElement, Match, Show, Switch, useContext } from "solid-js"
-import { createStore, produce, SetStoreFunction } from "solid-js/store"
+import { batch, createMemo, For, Match, Show, Switch } from "solid-js"
+import { produce } from "solid-js/store"
 import { createServerAction$, createServerData$, ServerError } from "solid-start/server"
 import { FAILED, GOT_ERROR, SENT_REQUEST, SENT_RETRY, SYNCED, type NetworkStatus } from "~/inessentials/networkStatus"
 import { randomString } from "~/inessentials/randomString"
 import { retryDelayGen } from "~/inessentials/retryDelay"
+import { useStore, WidgetProvider } from "~/state/store"
+
 import WayneIcon from "~/components/WayneIcon"
 
 // —————————————————————————————————————————————————————————————————————————————
-// Types
+// Types & Utility
 
-type Synced<T> = {
+export type Synced<T> = {
    data: T,
    meta: {
       clientsideId: string,
@@ -18,52 +22,24 @@ type Synced<T> = {
    },
 }
 
-type SyncedStore<T> = {
+export type SyncedStore<T> = {
    keyedItems: Record<string, Synced<T>>,
    clientsideIds: string[],
 }
 
-type SyncedStoreContext<T> = {
+export type SyncedStoreContext<T> = {
    state: SyncedStore<T>,
    setState: SetStoreFunction<SyncedStore<T>>,
 }
 
-type Widget = {
+export type Widget = {
    id: number,
    description: string,
    active: boolean,
 }
 
-function makeClientsideId() {
+export function makeClientsideId() {
    return randomString(8)
-}
-
-// —————————————————————————————————————————————————————————————————————————————
-// Store
-
-const WidgetContext = createContext<SyncedStoreContext<Widget>>()
-
-function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
-   const clientsideIds: string[] = []
-   const keyedWidgets: Record<string, Synced<Widget>> = Object.fromEntries(function * () {
-      for (const widget of props.init) {
-         const clientsideId = makeClientsideId()
-         clientsideIds.push(clientsideId)
-         yield [clientsideId, {
-            data: widget,
-            meta: {clientsideId, networkStatus: SYNCED}
-         }]
-      }
-   }())
-   const [state, setState] = createStore({keyedItems: keyedWidgets, clientsideIds})
-   const context = {state, setState}
-   return <WidgetContext.Provider value={context}>
-      {props.children}
-   </WidgetContext.Provider>
-}
-
-function useStore() {
-   return useContext(WidgetContext)
 }
 
 // —————————————————————————————————————————————————————————————————————————————
