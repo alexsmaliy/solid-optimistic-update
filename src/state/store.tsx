@@ -1,11 +1,11 @@
 import type { JSXElement } from "solid-js"
-import type { SyncedStoreContext, Widget, Synced } from "~/pages/WidgetPage"
+import type { SyncedStoreContext, Widget, Synced } from "~/routes/index"
 
 import { createContext, useContext  } from "solid-js"
 import { createStore } from "solid-js/store"
 
-import { makeClientsideId } from "~/pages/WidgetPage"
-import { SYNCED } from "~/inessentials/networkStatus"
+import { SYNCED } from "~/utility/networkStatus"
+import randomString from "~/utility/randomString"
 
 // —————————————————————————————————————————————————————————————————————————————
 // Store & Provider
@@ -16,7 +16,7 @@ export function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
    const clientsideIds: string[] = []
    const keyedWidgets: Record<string, Synced<Widget>> = Object.fromEntries(function * () {
       for (const widget of props.init) {
-         const clientsideId = makeClientsideId()
+         const clientsideId = randomString(8)
          clientsideIds.push(clientsideId)
          yield [clientsideId, {
             data: widget,

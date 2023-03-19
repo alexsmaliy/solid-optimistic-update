@@ -1,19 +1,16 @@
 // @refresh reload
 import { Suspense } from "solid-js";
 import {
-  A,
   Body,
   ErrorBoundary,
   FileRoutes,
   Head,
   Html,
   Meta,
-  Route,
   Routes,
   Scripts,
   Title,
 } from "solid-start";
-import WidgetPage from "./pages/WidgetPage";
 import "./root.css";
 
 const fonts = "https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@48,400,1,0"
@@ -31,7 +28,6 @@ export default function Root() {
         <Suspense>
           <ErrorBoundary>
             <Routes>
-              <Route path="/widgets" element={<WidgetPage />}/>
               <FileRoutes />
             </Routes>
           </ErrorBoundary>
