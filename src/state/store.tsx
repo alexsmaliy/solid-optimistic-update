@@ -1,5 +1,5 @@
 import Database from "better-sqlite3"
-import { batch, createContext, JSXElement, useContext } from "solid-js"
+import { batch, createContext, createEffect, JSXElement, useContext } from "solid-js"
 import { createStore, produce, SetStoreFunction } from "solid-js/store"
 import { refetchRouteData, ServerError } from "solid-start"
 import { createServerMultiAction$ } from "solid-start/server"
@@ -58,7 +58,14 @@ export type SyncedStoreContext<T> = {
 // —————————————————————————————————————————————————————————————————————————————
 // Server
 
-async function updateTransaction$(data: {ids: any[], sqlTemplate: string}) {
+async function updateTransaction$(data: {ids: any[], sqlTemplate: string, retryMeta: {
+   items: any,
+   keyField: any,
+   mutatedField: any,
+   newValue: any,
+   sqlTemplate: any,
+   setStore: any
+}}) {
    const db = new Database("./src/database/Omark.sqlite3", {fileMustExist: true})
    db.pragma("journal_mode = WAL")
    try {
@@ -155,7 +162,8 @@ export function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
 
       // the retry/rollback state machine
       function tryRepeatedly(totalTries: number) {
-         runUpdateInTransaction$({ids, sqlTemplate}).then(res => {
+         const retryMeta = {items, keyField, mutatedField, newValue, sqlTemplate, setStore}
+         runUpdateInTransaction$({ids, sqlTemplate, retryMeta}).then(res => {
             if (res instanceof Error) {
                if (totalTries > 0) {
                   console.error(`Got error, retrying ${totalTries} times.`, res.message)
@@ -256,9 +264,19 @@ export function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
 
    const retryFailedMutations = function retryFailedMutations() {
       console.log("Retrying..", inflightUpdates.length)
-      for (const update of inflightUpdates) {
-         runUpdateInTransaction$(update.input)
-         update.clear()
+      const copy = [...inflightUpdates] // TODO: how to filter this
+      for (const update of copy) {
+         const meta = update.input.retryMeta
+         runSyncedMutation({
+            items: meta.items,
+            keyField: meta.keyField,
+            mutatedField: meta.mutatedField,
+            newValue: meta.newValue,
+            sqlTemplate: meta.sqlTemplate,
+            setStore: meta.setStore
+         })
+         let i = copy.indexOf(update)
+         inflightUpdates.splice(i, 1)
       }
    }
 
