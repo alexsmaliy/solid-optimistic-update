@@ -141,7 +141,6 @@ function Widgets() {
 
       const tryRepeatedly = function tryRepeatedly(totalTries: number) {
          runInsertInTransaction$({item: newItem, sqlTemplate}).then(res => {
-            console.log("New item: ", newItem)
             if (res instanceof Error) {
                if (totalTries > 0) {
                   console.error(`Got error, retrying ${totalTries} times.`, res.message)
@@ -153,13 +152,11 @@ function Widgets() {
                } else {
                   setStore(produce(store => store.keyedItems[id].meta.networkStatus = FAILED))
                   return new Promise(() => {
-                     // @ts-ignore
                      setTimeout(() => setStore(produce(store => delete store.keyedItems[id])), 1000)
                   })
                }
             } else {
                setStore(produce(store => {
-                  console.log("DB response: ", res)
                   store.keyedItems[id].meta.networkStatus = SYNCED
                   store.keyedItems[id].data[keyField] = res[0].id
                }))
