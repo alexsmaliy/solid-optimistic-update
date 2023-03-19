@@ -43,7 +43,7 @@ export type Widget = {
 // Server
 
 function getAllWidgets$() {
-   const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
+   const db = new Database("./src/database/Omark.sqlite3", {fileMustExist: true})
    db.pragma("journal_mode = WAL")
    const results: Widget[] = db.prepare<Widget[]>("SELECT * FROM widgets;").all()
    const widgets = results.map(({id, description, active}) => ({id, description, active: !!active}))
@@ -51,7 +51,7 @@ function getAllWidgets$() {
 }
 
 async function updateTransaction$(data: {ids: any[], sqlTemplate: string}) {
-   const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
+   const db = new Database("./src/database/Omark.sqlite3", {fileMustExist: true})
    db.pragma("journal_mode = WAL")
    try {
       const results = db.transaction(ids => {
@@ -69,7 +69,7 @@ async function updateTransaction$(data: {ids: any[], sqlTemplate: string}) {
 }
 
 async function insertTransaction$(data: {item: Record<string, unknown>, sqlTemplate: string}) {
-   const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
+   const db = new Database("./src/database/Omark.sqlite3", {fileMustExist: true})
    db.pragma("journal_mode = WAL")
    try {
       const result = db.prepare(data.sqlTemplate).all(data.item) // make sure the insert query has @prop placeholders!
