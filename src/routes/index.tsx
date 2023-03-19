@@ -5,11 +5,11 @@ import { batch, createMemo, For, Match, Show, Switch } from "solid-js"
 import { produce } from "solid-js/store"
 import { createServerAction$, createServerData$, ServerError } from "solid-start/server"
 import { FAILED, GOT_ERROR, SENT_REQUEST, SENT_RETRY, SYNCED, type NetworkStatus } from "~/utility/networkStatus"
-import { randomString } from "~/utility/randomString"
-import { retryDelayGen } from "~/utility/retryDelay"
+import randomString from "~/utility/randomString"
+import retryDelayGen from "~/utility/retryDelay"
 import { useStore, WidgetProvider } from "~/state/store"
 
-import WayneIcon from "~/components/WayneIcon"
+import Icon from "~/components/Icon"
 
 // —————————————————————————————————————————————————————————————————————————————
 // Types & Utility
@@ -137,7 +137,7 @@ function Widgets() {
                   setStore(produce(store => store.keyedItems[id].meta.networkStatus = GOT_ERROR))
                   return new Promise(() => {
                      setStore(produce(store => store.keyedItems[id].meta.networkStatus = SENT_RETRY))
-                     setTimeout(() => tryRepeatedly(totalTries - 1), retryDelay.next().value)
+                     setTimeout(() => tryRepeatedly(totalTries - 1), retryDelay.next().value!)
                   })
                }
                else {
@@ -319,11 +319,11 @@ function Widgets() {
                   </div>
                   <div class={`widget-overlay ${meta.networkStatus}`}></div>
                   <Switch>
-                     <Match when={meta.networkStatus === FAILED}><WayneIcon icon="gpp_bad"/></Match>
-                     <Match when={meta.networkStatus === GOT_ERROR}><WayneIcon icon="gpp_maybe"/></Match>
-                     <Match when={meta.networkStatus === SENT_REQUEST}><WayneIcon icon="arming_countdown"/></Match>
-                     <Match when={meta.networkStatus === SENT_RETRY}><WayneIcon icon="gpp_maybe"/></Match>
-                     <Match when={meta.networkStatus === SYNCED}><WayneIcon icon="shield"/></Match>
+                     <Match when={meta.networkStatus === FAILED}><Icon icon="gpp_bad"/></Match>
+                     <Match when={meta.networkStatus === GOT_ERROR}><Icon icon="gpp_maybe"/></Match>
+                     <Match when={meta.networkStatus === SENT_REQUEST}><Icon icon="arming_countdown"/></Match>
+                     <Match when={meta.networkStatus === SENT_RETRY}><Icon icon="gpp_maybe"/></Match>
+                     <Match when={meta.networkStatus === SYNCED}><Icon icon="shield"/></Match>
                   </Switch>
                </div>
             )

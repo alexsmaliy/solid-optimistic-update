@@ -1,12 +1,12 @@
 type NonZeroDigit = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 type Digit = NonZeroDigit | 0
-export type Milliseconds = `${Digit}ms`
+export type ms = `${Digit}ms`
     | `${NonZeroDigit}${Digit}ms`
     | `${NonZeroDigit}${Digit}${Digit}ms`
     | `${NonZeroDigit}${Digit}${Digit}${Digit}ms`
     | `${NonZeroDigit}${Digit}${Digit}${Digit}${Digit}ms`
 
-export const retryDelayGen = function*(initDelayMs: Milliseconds, maxDelayMs: Milliseconds) {
+export default function * retryDelay(initDelayMs:ms, maxDelayMs:ms) {
     let delayMs = parseInt(initDelayMs, 10)
     let maxDelay = parseInt(maxDelayMs, 10)
     let power = 1
