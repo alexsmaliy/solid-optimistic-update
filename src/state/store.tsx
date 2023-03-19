@@ -275,8 +275,9 @@ export function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
             sqlTemplate: meta.sqlTemplate,
             setStore: meta.setStore
          })
+         update.clear()
          let i = copy.indexOf(update)
-         inflightUpdates.splice(i, 1)
+         inflightUpdates.splice(i, 1) // WHYYYYYY
       }
    }
 
