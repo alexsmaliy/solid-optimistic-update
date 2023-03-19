@@ -1,61 +1,13 @@
-import type { SetStoreFunction } from "solid-js/store"
-import type { NetworkStatus } from "~/utility/networkStatus"
-
 import Database from "better-sqlite3"
-import { batch, createMemo, For, Match, Show, Switch } from "solid-js"
-import { produce } from "solid-js/store"
-import { createServerAction$, createServerData$, ServerError } from "solid-start/server"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
+import { createServerData$ } from "solid-start/server"
+import Icon from "~/components/Icon"
+import { Synced, useStore, WidgetProvider } from "~/state/store"
 import { FAILED, GOT_ERROR, SENT_REQUEST, SENT_RETRY, SYNCED } from "~/utility/networkStatus"
 import randomString from "~/utility/randomString"
-import retryDelayGen from "~/utility/retryDelay"
-import { useStore, WidgetProvider } from "~/state/store"
-
-import Icon from "~/components/Icon"
 
 // —————————————————————————————————————————————————————————————————————————————
 // Types & Utility
-
-export type Synced<T> = {
-   data: T,
-   meta: {
-      clientsideId: string,
-      networkStatus: NetworkStatus,
-   },
-}
-
-export type SyncedStore<T> = {
-   keyedItems: Record<string, Synced<T>>,
-   clientsideIds: string[],
-}
-
-export type SyncedStoreContext<T> = {
-   state: SyncedStore<T>,
-   setState: SetStoreFunction<SyncedStore<T>>,
-   runSyncedMutation<
-      Item extends Record<string, unknown>,
-      KeyField extends keyof Item,
-      MutatedField extends keyof Item,
-      NewValue extends Item[MutatedField],
-      Store extends SyncedStore<Item>,
-   >({items, keyField, mutatedField, newValue, sqlTemplate, setStore}: {
-      items: Synced<Item>[],
-      keyField: KeyField,
-      mutatedField: MutatedField,
-      newValue: NewValue,
-      sqlTemplate: string,
-      setStore: SetStoreFunction<Store>
-   }): void,
-   runSyncedCreation<
-      Item extends Record<string, unknown>,
-      KeyField extends keyof Item,
-      Store extends SyncedStore<Item>,
-   >({newItem, keyField, sqlTemplate, setStore}: {
-      newItem: Item,
-      keyField: KeyField,
-      sqlTemplate: string,
-      setStore: SetStoreFunction<Store>,
-   }): void,
-}
 
 export type Widget = {
    id: number,
@@ -90,7 +42,7 @@ export default function WidgetPage() {
 }
 
 function Widgets() {
-   const { state, setState, runSyncedCreation, runSyncedMutation } = useStore()!
+   const { state, setState, runSyncedCreation, runSyncedMutation, retryFailedCreations, retryFailedMutations } = useStore()!
 
    const setActive = (widgets: Synced<Widget>[]) => runSyncedMutation({
       items: widgets,
@@ -132,6 +84,7 @@ function Widgets() {
       <button onClick={() => setActive(clientsideWidgetsMemo())}>SET ALL ACTIVE</button>
       <button onClick={() => setInactive(clientsideWidgetsMemo())}>SET ALL INACTIVE</button>
       <button onClick={() => createRandomNew()}>ADD WIDGET</button>
+      <button onClick={() => retryFailedMutations()}>RETRY MUTATIONS</button>
       <For each={clientsideWidgetsMemo()}>
          { (widget, index) => {
             const i = createMemo(() => index())

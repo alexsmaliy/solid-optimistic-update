@@ -1,18 +1,62 @@
-import { batch, JSXElement } from "solid-js"
-import type { SyncedStoreContext, Widget, Synced, SyncedStore } from "~/routes/index"
-
-import { createContext, useContext  } from "solid-js"
-import { createStore, produce, SetStoreFunction } from "solid-js/store"
-
-import { FAILED, GOT_ERROR, SENT_REQUEST, SENT_RETRY, SYNCED } from "~/utility/networkStatus"
-import randomString from "~/utility/randomString"
 import Database from "better-sqlite3"
-import { ServerError } from "solid-start"
-import { createServerAction$ } from "solid-start/server"
+import { batch, createContext, JSXElement, useContext } from "solid-js"
+import { createStore, produce, SetStoreFunction } from "solid-js/store"
+import { refetchRouteData, ServerError } from "solid-start"
+import { createServerMultiAction$ } from "solid-start/server"
+import type { Widget } from "~/routes/index"
+import { FAILED, GOT_ERROR, NetworkStatus, SENT_REQUEST, SENT_RETRY, SYNCED } from "~/utility/networkStatus"
+import randomString from "~/utility/randomString"
 import retryDelay from "~/utility/retryDelay"
 
 // —————————————————————————————————————————————————————————————————————————————
-// Serverside DB
+// Types
+
+export type Synced<T> = {
+   data: T,
+   meta: {
+      clientsideId: string,
+      networkStatus: NetworkStatus,
+   },
+}
+
+export type SyncedStore<T> = {
+   keyedItems: Record<string, Synced<T>>,
+   clientsideIds: string[],
+}
+
+export type SyncedStoreContext<T> = {
+   state: SyncedStore<T>,
+   setState: SetStoreFunction<SyncedStore<T>>,
+   runSyncedMutation<
+      Item extends Record<string, unknown>,
+      KeyField extends keyof Item,
+      MutatedField extends keyof Item,
+      NewValue extends Item[MutatedField],
+      Store extends SyncedStore<Item>,
+   >({items, keyField, mutatedField, newValue, sqlTemplate, setStore}: {
+      items: Synced<Item>[],
+      keyField: KeyField,
+      mutatedField: MutatedField,
+      newValue: NewValue,
+      sqlTemplate: string,
+      setStore: SetStoreFunction<Store>
+   }): void,
+   runSyncedCreation<
+      Item extends Record<string, unknown>,
+      KeyField extends keyof Item,
+      Store extends SyncedStore<Item>,
+   >({newItem, keyField, sqlTemplate, setStore}: {
+      newItem: Item,
+      keyField: KeyField,
+      sqlTemplate: string,
+      setStore: SetStoreFunction<Store>,
+   }): void,
+   retryFailedMutations(): void,
+   retryFailedCreations(): void,
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// Server
 
 async function updateTransaction$(data: {ids: any[], sqlTemplate: string}) {
    const db = new Database("./src/database/Omark.sqlite3", {fileMustExist: true})
@@ -64,8 +108,8 @@ export function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
       }
    }())
 
-   const [, runUpdateInTransaction$] = createServerAction$(updateTransaction$)
-   const [, runInsertInTransaction$] = createServerAction$(insertTransaction$)
+   const [inflightUpdates, runUpdateInTransaction$] = createServerMultiAction$(updateTransaction$)
+   const [inflightInserts, runInsertInTransaction$] = createServerMultiAction$(insertTransaction$)
 
    function runSyncedMutation<
       Item extends Record<string, unknown>,
@@ -210,8 +254,24 @@ export function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
       tryRepeatedly(numTries)
    }
 
+   const retryFailedMutations = function retryFailedMutations() {
+      console.log("Retrying..", inflightUpdates.length)
+      for (const update of inflightUpdates) {
+         runUpdateInTransaction$(update.input)
+         update.clear()
+      }
+   }
+
+   function retryFailedCreations() {
+      for (const insert of inflightInserts) {
+         if (insert.error) {
+            runInsertInTransaction$(insert.input)
+         }
+      }
+   }
+
    const [state, setState] = createStore({keyedItems: keyedWidgets, clientsideIds})
-   const context = {state, setState, runSyncedCreation, runSyncedMutation}
+   const context = {state, setState, runSyncedCreation, runSyncedMutation, retryFailedCreations, retryFailedMutations}
 
    return <WidgetContext.Provider value={context}>
       {props.children}
