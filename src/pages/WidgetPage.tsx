@@ -45,7 +45,7 @@ const WidgetContext = createContext<SyncedStoreContext<Widget>>()
 
 function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
    const clientsideIds: string[] = []
-   const keyedWidgets: Record<string, Synced<Widget>> = Object.fromEntries(function*() {
+   const keyedWidgets: Record<string, Synced<Widget>> = Object.fromEntries(function * () {
       for (const widget of props.init) {
          const clientsideId = makeClientsideId()
          clientsideIds.push(clientsideId)
