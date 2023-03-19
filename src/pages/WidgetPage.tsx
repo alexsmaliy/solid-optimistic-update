@@ -1,11 +1,14 @@
-import Database from "better-sqlite3";
-import { batch, createContext, createMemo, For, JSXElement, Match, Show, Switch, useContext } from "solid-js";
-import { createStore, produce, SetStoreFunction } from "solid-js/store";
-import { createServerAction$, createServerData$, ServerError } from "solid-start/server";
-import WayneIcon from "~/components/WayneIcon";
-import { FAILED, GOT_ERROR, SENT_REQUEST, SENT_RETRY, SYNCED, type NetworkStatus } from "~/inessentials/networkStatus";
-import { randomString } from "~/inessentials/randomString";
-import { retryDelayGen } from "~/inessentials/retryDelay";
+import Database from "better-sqlite3"
+import { batch, createContext, createMemo, For, JSXElement, Match, Show, Switch, useContext } from "solid-js"
+import { createStore, produce, SetStoreFunction } from "solid-js/store"
+import { createServerAction$, createServerData$, ServerError } from "solid-start/server"
+import { FAILED, GOT_ERROR, SENT_REQUEST, SENT_RETRY, SYNCED, type NetworkStatus } from "~/inessentials/networkStatus"
+import { randomString } from "~/inessentials/randomString"
+import { retryDelayGen } from "~/inessentials/retryDelay"
+import WayneIcon from "~/components/WayneIcon"
+
+// —————————————————————————————————————————————————————————————————————————————
+// Types
 
 type Synced<T> = {
    data: T,
@@ -35,6 +38,9 @@ function makeClientsideId() {
    return randomString(8)
 }
 
+// —————————————————————————————————————————————————————————————————————————————
+// Store
+
 const WidgetContext = createContext<SyncedStoreContext<Widget>>()
 
 function WidgetProvider(props: {init: Widget[], children?: JSXElement}) {
@@ -60,14 +66,54 @@ function useStore() {
    return useContext(WidgetContext)
 }
 
+// —————————————————————————————————————————————————————————————————————————————
+// Server
+
+function getAllWidgets$() {
+   const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
+   db.pragma("journal_mode = WAL")
+   const results: Widget[] = db.prepare<Widget[]>("SELECT * FROM widgets;").all()
+   const widgets = results.map(({id, description, active}) => ({id, description, active: !!active}))
+   return widgets
+}
+
+async function updateTransaction$(data: {ids: any[], sqlTemplate: string}) {
+   const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
+   db.pragma("journal_mode = WAL")
+   try {
+      const results = db.transaction(ids => {
+         const results: Database.RunResult[] = []
+         for (const id of ids) results.push(db.prepare(data.sqlTemplate).run(id))
+         return results
+      })(data.ids)
+      const _ = await new Promise(resolve => setTimeout(resolve, 1000)) // artificially slow endpoint
+      return results
+   }
+   catch (err) {
+      console.error("Error while running DB transaction serverside: ", err)
+      return new ServerError(`Error while running DB transaction serverside: ${(err as Error).message}`)
+   }
+}
+
+async function insertTransaction$(data: {item: Record<string, unknown>, sqlTemplate: string}) {
+   const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
+   db.pragma("journal_mode = WAL")
+   try {
+      const result = db.prepare(data.sqlTemplate).all(data.item) // make sure the insert query has @prop placeholders!
+      const _ = await new Promise(resolve => setTimeout(resolve, 1000)) // artificially slow endpoint
+      return result
+   }
+   catch (err) {
+      console.error("Error while running DB transaction serverside: ", err)
+      return new ServerError(`Error while running DB transaction serverside: ${(err as Error).message}`)
+   }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// Widget
+
 export default function WidgetPage() {
-   const widgets = createServerData$(async _unused => {
-      const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
-      db.pragma("journal_mode = WAL")
-      const results: Widget[] = db.prepare<Widget[]>("SELECT * FROM widgets;").all()
-      const widgets = results.map(({id, description, active}) => ({id, description, active: !!active}))
-      return widgets
-   })
+   const widgets = createServerData$(getAllWidgets$)
 
    return (
       <Show when={widgets()} fallback={<p>Fallback for no widgets.</p>}>
@@ -79,39 +125,11 @@ export default function WidgetPage() {
 }
 
 function Widgets() {
-   const {state, setState} = useStore()!
+   const { state, setState } = useStore()!
 
    // for use by runSyncedMutation() and should really be defined inside it
-   const [_unused1, runUpdateInTransaction$] = createServerAction$(async (data: {ids: any[], sqlTemplate: string}) => {
-      const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
-      db.pragma("journal_mode = WAL")
-      try {
-         const results = db.transaction(ids => {
-            const results: Database.RunResult[] = []
-            for (const id of ids) results.push(db.prepare(data.sqlTemplate).run(id))
-            return results
-         })(data.ids)
-         const _ = await new Promise(resolve => setTimeout(resolve, 1000)) // artificially slow endpoint
-         return results
-      } catch (err) {
-         console.error("Error while running DB transaction serverside: ", err)
-         return new ServerError(`Error while running DB transaction serverside: ${(err as Error).message}`)
-      }
-   })
-
-   // for use by runSyncedCreation()
-   const [_unused2, runInsertInTransaction$] = createServerAction$(async (data: {item: Record<string, unknown>, sqlTemplate: string}) => {
-      const db = new Database("./src/database/d1/Omark.sqlite3", {fileMustExist: true})
-      db.pragma("journal_mode = WAL")
-      try {
-         const result = db.prepare(data.sqlTemplate).all(data.item) // make sure the insert query has @prop placeholders!
-         const _ = await new Promise(resolve => setTimeout(resolve, 1000)) // artificially slow endpoint
-         return result
-      } catch (err) {
-         console.error("Error while running DB transaction serverside: ", err)
-         return new ServerError(`Error while running DB transaction serverside: ${(err as Error).message}`)
-      }
-   })
+   const [, runUpdateInTransaction$] = createServerAction$(updateTransaction$)
+   const [, runInsertInTransaction$] = createServerAction$(insertTransaction$)
 
    function runSyncedCreation<
       Item extends Record<string, unknown>,
@@ -149,13 +167,15 @@ function Widgets() {
                      setStore(produce(store => store.keyedItems[id].meta.networkStatus = SENT_RETRY))
                      setTimeout(() => tryRepeatedly(totalTries - 1), retryDelay.next().value)
                   })
-               } else {
+               }
+               else {
                   setStore(produce(store => store.keyedItems[id].meta.networkStatus = FAILED))
                   return new Promise(() => {
                      setTimeout(() => setStore(produce(store => delete store.keyedItems[id])), 1000)
                   })
                }
-            } else {
+            }
+            else {
                setStore(produce(store => {
                   store.keyedItems[id].meta.networkStatus = SYNCED
                   store.keyedItems[id].data[keyField] = res[0].id
@@ -207,7 +227,7 @@ function Widgets() {
       })
 
       const retryDelay = retryDelayGen("250ms", "10000ms")
-      const numTries = 3;
+      const numTries = 3
 
       // the retry/rollback state machine
       const tryRepeatedly = function tryRepeatedly(totalTries: number) {
@@ -228,7 +248,8 @@ function Widgets() {
                      })
                      setTimeout(() => tryRepeatedly(totalTries - 1), retryDelay.next().value)
                   })
-               } else {
+               }
+               else {
                   batch(() => {
                      for (const id of clientsideIds)
                         setStore(produce(store => {
@@ -238,11 +259,11 @@ function Widgets() {
                         }))
                   })
                }
-            } else
-               batch(() => {
-                  for (const id of clientsideIds)
-                     setStore(produce(store => store.keyedItems[id].meta.networkStatus = SYNCED))
-               })
+            }
+            else batch(() => {
+               for (const id of clientsideIds)
+                  setStore(produce(store => store.keyedItems[id].meta.networkStatus = SYNCED))
+            })
          })
       }
 
@@ -285,56 +306,52 @@ function Widgets() {
       () => clientsideIdsMemo().map(id => state.keyedItems[id])
    )
 
-   return (
-      <>
+   return <>
       <button onClick={() => setActive(clientsideWidgetsMemo())}>SET ALL ACTIVE</button>
       <button onClick={() => setInactive(clientsideWidgetsMemo())}>SET ALL INACTIVE</button>
       <button onClick={() => createRandomNew()}>ADD WIDGET</button>
       <For each={clientsideWidgetsMemo()}>
-         {
-            (widget, index) => {
-               const i = createMemo(() => index())
-               const data = widget.data
-               const meta = widget.meta
-               return (
-                  <div class="widget-container">
-                     <div class={`widget ${meta.networkStatus} ${data.active ? "active" : "inactive"}`} id={`widget-${i()}`}>
-                        <div class="id">{data.id}</div>
-                        <div class="description">{data.description}</div>
-                        <fieldset>
-                           <input
-                              onClick={() => !data.active && setActive([widget])}
-                              type="radio"
-                              name={`toggle-${i()}`}
-                              id={`is-active-${i()}`}
-                              checked={data.active}
-                              disabled={meta.networkStatus !== SYNCED}
-                           />
-                           <label for={`is-active-${i()}`}>Active</label>
-                           <input
-                              onClick={() => data.active && setInactive([widget])}
-                              type="radio"
-                              name={`toggle-${i()}`}
-                              id={`is-inactive-${i()}`}
-                              checked={!data.active}
-                              disabled={meta.networkStatus !== SYNCED}
-                           />
-                           <label for={`is-inactive-${i()}`}>Inactive</label>
-                        </fieldset>
-                     </div>
-                     <div class={`widget-overlay ${meta.networkStatus}`}></div>
-                     <Switch>
-                        <Match when={meta.networkStatus === FAILED}><WayneIcon icon="gpp_bad"/></Match>
-                        <Match when={meta.networkStatus === GOT_ERROR}><WayneIcon icon="gpp_maybe"/></Match>
-                        <Match when={meta.networkStatus === SENT_REQUEST}><WayneIcon icon="arming_countdown"/></Match>
-                        <Match when={meta.networkStatus === SENT_RETRY}><WayneIcon icon="gpp_maybe"/></Match>
-                        <Match when={meta.networkStatus === SYNCED}><WayneIcon icon="shield"/></Match>
-                     </Switch>
+         { (widget, index) => {
+            const i = createMemo(() => index())
+            const data = widget.data
+            const meta = widget.meta
+            return (
+               <div class="widget-container">
+                  <div class={`widget ${meta.networkStatus} ${data.active ? "active" : "inactive"}`} id={`widget-${i()}`}>
+                     <div class="id">{data.id}</div>
+                     <div class="description">{data.description}</div>
+                     <fieldset>
+                        <input
+                           onClick={() => !data.active && setActive([widget])}
+                           type="radio"
+                           name={`toggle-${i()}`}
+                           id={`is-active-${i()}`}
+                           checked={data.active}
+                           disabled={meta.networkStatus !== SYNCED}
+                        />
+                        <label for={`is-active-${i()}`}>Active</label>
+                        <input
+                           onClick={() => data.active && setInactive([widget])}
+                           type="radio"
+                           name={`toggle-${i()}`}
+                           id={`is-inactive-${i()}`}
+                           checked={!data.active}
+                           disabled={meta.networkStatus !== SYNCED}
+                        />
+                        <label for={`is-inactive-${i()}`}>Inactive</label>
+                     </fieldset>
                   </div>
-               )
-            }
-         }
+                  <div class={`widget-overlay ${meta.networkStatus}`}></div>
+                  <Switch>
+                     <Match when={meta.networkStatus === FAILED}><WayneIcon icon="gpp_bad"/></Match>
+                     <Match when={meta.networkStatus === GOT_ERROR}><WayneIcon icon="gpp_maybe"/></Match>
+                     <Match when={meta.networkStatus === SENT_REQUEST}><WayneIcon icon="arming_countdown"/></Match>
+                     <Match when={meta.networkStatus === SENT_RETRY}><WayneIcon icon="gpp_maybe"/></Match>
+                     <Match when={meta.networkStatus === SYNCED}><WayneIcon icon="shield"/></Match>
+                  </Switch>
+               </div>
+            )
+         }}
       </For>
-      </>
-   )
+   </>
 }
