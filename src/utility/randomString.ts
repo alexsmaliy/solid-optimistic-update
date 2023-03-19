@@ -1,3 +1,4 @@
+/** Generates random alphanumeric string of some `length`. */
 export default function randomString(length:number) {
     const bytes = new Uint8Array(Math.ceil(length / 2))
     crypto.getRandomValues(bytes)

@@ -1,10 +1,11 @@
 import type { SetStoreFunction } from "solid-js/store"
+import type { NetworkStatus } from "~/utility/networkStatus"
 
 import Database from "better-sqlite3"
 import { batch, createMemo, For, Match, Show, Switch } from "solid-js"
 import { produce } from "solid-js/store"
 import { createServerAction$, createServerData$, ServerError } from "solid-start/server"
-import { FAILED, GOT_ERROR, SENT_REQUEST, SENT_RETRY, SYNCED, type NetworkStatus } from "~/utility/networkStatus"
+import { FAILED, GOT_ERROR, SENT_REQUEST, SENT_RETRY, SYNCED } from "~/utility/networkStatus"
 import randomString from "~/utility/randomString"
 import retryDelayGen from "~/utility/retryDelay"
 import { useStore, WidgetProvider } from "~/state/store"
