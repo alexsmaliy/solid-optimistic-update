@@ -133,7 +133,7 @@ function Widgets() {
       const retryDelay = retryDelayGen("250ms", "10000ms")
       const numTries = 3;
 
-      const tryRepeatedly = function tryRepeatedly(totalTries: number) {
+      function tryRepeatedly(totalTries: number) {
          runInsertInTransaction$({item: newItem, sqlTemplate}).then(res => {
             if (res instanceof Error) {
                if (totalTries > 0) {
@@ -147,7 +147,11 @@ function Widgets() {
                else {
                   setStore(produce(store => store.keyedItems[id].meta.networkStatus = FAILED))
                   return new Promise(() => {
-                     setTimeout(() => setStore(produce(store => delete store.keyedItems[id])), 1000)
+                     setTimeout(() => setStore(produce(store => {
+                        delete store.keyedItems[id]
+                        const position = store.clientsideIds.indexOf(id)
+                        store.clientsideIds.splice(position, 1)
+                     })), 1000)
                   })
                }
             }
